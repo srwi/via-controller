@@ -4,10 +4,6 @@ use eframe::egui;
 use egui::ecolor;
 use qmk_via_api::api::KeyboardApi;
 
-const PRODUCT_VID: u16 = 0x7372;
-const PRODUCT_PID: u16 = 0x0002;
-const USAGE_PAGE: u16 = 0xff60;
-
 struct ViaController {
     api: std::sync::Arc<KeyboardApi>,
     backlight_brightness: Option<u8>,
@@ -30,36 +26,31 @@ struct ViaController {
     audio_clicky_enabled: Option<bool>,
 }
 
-impl Default for ViaController {
-    fn default() -> Self {
-        let api =
-            std::sync::Arc::new(KeyboardApi::new(PRODUCT_VID, PRODUCT_PID, USAGE_PAGE).unwrap());
-        let api_clone = api.clone();
+impl ViaController {
+    fn new(api: std::sync::Arc<KeyboardApi>) -> Self {
         Self {
-            api,
-            backlight_brightness: api_clone.get_backlight_brightness(),
-            backlight_effect: api_clone.get_backlight_effect(),
-            rgblight_brightness: api_clone.get_rgblight_brightness(),
-            rgblight_effect: api_clone.get_rgblight_effect(),
-            rgblight_effect_speed: api_clone.get_rgblight_effect_speed(),
-            rgblight_color: api_clone.get_rgblight_color(),
-            rgb_matrix_brightness: api_clone.get_rgb_matrix_brightness(),
-            rgb_matrix_effect: api_clone.get_rgb_matrix_effect(),
-            rgb_matrix_effect_speed: api_clone.get_rgb_matrix_effect_speed(),
-            rgb_matrix_color: api_clone.get_rgb_matrix_color(),
-            led_matrix_brightness: api_clone.get_led_matrix_brightness(),
-            led_matrix_effect: api_clone.get_led_matrix_effect(),
-            led_matrix_effect_speed: api_clone.get_led_matrix_effect_speed(),
-            protocol_version: api_clone.get_protocol_version(),
-            layer_count: api_clone.get_layer_count(),
-            macro_count: api_clone.get_macro_count(),
-            audio_enabled: api_clone.get_audio_enabled(),
-            audio_clicky_enabled: api_clone.get_audio_clicky_enabled(),
+            api: api.clone(),
+            backlight_brightness: api.get_backlight_brightness(),
+            backlight_effect: api.get_backlight_effect(),
+            rgblight_brightness: api.get_rgblight_brightness(),
+            rgblight_effect: api.get_rgblight_effect(),
+            rgblight_effect_speed: api.get_rgblight_effect_speed(),
+            rgblight_color: api.get_rgblight_color(),
+            rgb_matrix_brightness: api.get_rgb_matrix_brightness(),
+            rgb_matrix_effect: api.get_rgb_matrix_effect(),
+            rgb_matrix_effect_speed: api.get_rgb_matrix_effect_speed(),
+            rgb_matrix_color: api.get_rgb_matrix_color(),
+            led_matrix_brightness: api.get_led_matrix_brightness(),
+            led_matrix_effect: api.get_led_matrix_effect(),
+            led_matrix_effect_speed: api.get_led_matrix_effect_speed(),
+            protocol_version: api.get_protocol_version(),
+            layer_count: api.get_layer_count(),
+            macro_count: api.get_macro_count(),
+            audio_enabled: api.get_audio_enabled(),
+            audio_clicky_enabled: api.get_audio_clicky_enabled(),
         }
     }
-}
 
-impl ViaController {
     fn render_slider(
         ui: &mut egui::Ui,
         label: &str,
@@ -129,9 +120,7 @@ impl ViaController {
             );
         });
     }
-}
 
-impl eframe::App for ViaController {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical()
@@ -356,14 +345,84 @@ impl eframe::App for ViaController {
     }
 }
 
+struct AppState {
+    vid: String,
+    pid: String,
+    usage_page: String,
+    controller: Option<ViaController>,
+    connection_status: String,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self {
+            vid: String::new(),
+            pid: String::new(),
+            usage_page: String::from("FF60"),
+            controller: None,
+            connection_status: String::new(),
+        }
+    }
+}
+
+impl eframe::App for AppState {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            if self.controller.is_none() {
+                ui.label("Enter VID, PID, and usage page to connect to a via-enabled keyboard:");
+
+                ui.horizontal(|ui| {
+                    ui.label("VID:");
+                    ui.add(egui::TextEdit::singleline(&mut self.vid).hint_text("7372"));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("PID:");
+                    ui.add(egui::TextEdit::singleline(&mut self.pid).hint_text("0002"));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Usage Page:");
+                    ui.add(egui::TextEdit::singleline(&mut self.usage_page));
+                });
+
+                if ui.button("Connect").clicked() {
+                    self.connection_status = "Connecting...".to_string();
+                    if let (Ok(vid), Ok(pid), Ok(usage_page)) = (
+                        u16::from_str_radix(&self.vid, 16),
+                        u16::from_str_radix(&self.pid, 16),
+                        u16::from_str_radix(&self.usage_page, 16),
+                    ) {
+                        if let Ok(api) = KeyboardApi::new(vid, pid, usage_page) {
+                            self.controller = Some(ViaController::new(std::sync::Arc::new(api)));
+                            self.connection_status = "Connected successfully!".to_string();
+                        } else {
+                            self.connection_status =
+                                "Failed to connect to the keyboard. Please try again.".to_string();
+                        }
+                    } else {
+                        self.connection_status =
+                            "Invalid VID, PID, or usage page. Please enter valid hex values."
+                                .to_string();
+                    }
+                }
+
+                ui.label(&self.connection_status);
+            } else if let Some(controller) = &mut self.controller {
+                controller.update(ctx, _frame);
+            }
+        });
+    }
+}
+
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([320.0, 240.0]),
+        viewport: egui::ViewportBuilder::default().with_inner_size([300.0, 350.0]),
         ..Default::default()
     };
     eframe::run_native(
         "VIA Controller",
         options,
-        Box::new(|_cc| Ok(Box::<ViaController>::default())),
+        Box::new(|_cc| Ok(Box::<AppState>::default())),
     )
 }
