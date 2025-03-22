@@ -24,7 +24,6 @@ struct ViaController {
     led_matrix_effect_speed: Option<u8>,
     protocol_version: Option<u16>,
     layer_count: Option<u8>,
-    encoder_value: Option<u16>,
     macro_count: Option<u8>,
     audio_enabled: Option<bool>,
     audio_clicky_enabled: Option<bool>,
@@ -52,7 +51,6 @@ impl Default for ViaController {
             led_matrix_effect_speed: api_clone.get_led_matrix_effect_speed(),
             protocol_version: api_clone.get_protocol_version(),
             layer_count: api_clone.get_layer_count(),
-            encoder_value: None,
             macro_count: api_clone.get_macro_count(),
             audio_enabled: api_clone.get_audio_enabled(),
             audio_clicky_enabled: api_clone.get_audio_clicky_enabled(),
@@ -66,8 +64,6 @@ impl eframe::App for ViaController {
             egui::ScrollArea::vertical()
                 .auto_shrink([false; 2])
                 .show(ui, |ui| {
-                    ui.heading("VIA Controller");
-
                     egui::CollapsingHeader::new("Keyboard Info")
                         .default_open(true)
                         .show(ui, |ui| {
@@ -82,46 +78,68 @@ impl eframe::App for ViaController {
                             if let Some(count) = self.macro_count {
                                 ui.label(format!("Macro Count: {}", count));
                             }
-
-                            if let Some(value) = self.encoder_value {
-                                ui.label(format!("Encoder Value: {}", value));
-                            }
-
-                            if let Some(mut enabled) = self.audio_enabled {
-                                ui.checkbox(&mut enabled, "Audio Enabled");
-                                if ui.checkbox(&mut enabled, "Audio Enabled").changed() {
-                                    self.api.set_audio_enabled(enabled);
-                                }
-                            }
-
-                            if let Some(mut enabled) = self.audio_clicky_enabled {
-                                ui.checkbox(&mut enabled, "Audio Clicky Enabled");
-                                if ui.checkbox(&mut enabled, "Audio Clicky Enabled").changed() {
-                                    self.api.set_audio_clicky_enabled(enabled);
-                                }
-                            }
-
-                            if ui.button("Save Lighting").clicked() {
-                                self.api.save_lighting();
-                            }
-
-                            if ui.button("Reset Macros").clicked() {
-                                self.api.reset_macros();
-                            }
-
-                            if ui.button("Reset EEPROM").clicked() {
-                                self.api.reset_eeprom();
-                            }
-
-                            if ui.button("Jump to Bootloader").clicked() {
-                                self.api.jump_to_bootloader();
-                            }
                         });
+
+                    ui.add_enabled_ui(self.audio_enabled.is_some(), |ui| {
+                        egui::CollapsingHeader::new("Audio")
+                            .default_open(false)
+                            .show(ui, |ui| {
+                                if ui
+                                    .checkbox(self.audio_enabled.as_mut().unwrap(), "Audio Enabled")
+                                    .changed()
+                                {
+                                    self.api.set_audio_enabled(self.audio_enabled.unwrap());
+                                }
+
+                                if ui
+                                    .checkbox(
+                                        self.audio_clicky_enabled.as_mut().unwrap(),
+                                        "Audio Clicky Enabled",
+                                    )
+                                    .changed()
+                                {
+                                    self.api.set_audio_clicky_enabled(
+                                        self.audio_clicky_enabled.unwrap(),
+                                    );
+                                }
+                            });
+                    });
 
                     ui.add_enabled_ui(self.backlight_brightness.is_some(), |ui| {
                         egui::CollapsingHeader::new("Backlight")
                             .default_open(false)
                             .show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    if ui.button("-").clicked() {
+                                        if let Some(effect) = self.backlight_effect.as_mut() {
+                                            *effect = effect.saturating_sub(1);
+                                            self.api.set_backlight_effect(*effect);
+                                        }
+                                    }
+
+                                    if ui
+                                        .add(
+                                            egui::DragValue::new(
+                                                self.backlight_effect.as_mut().unwrap(),
+                                            )
+                                            .range(0..=255)
+                                            .speed(1)
+                                            .prefix("Effect: "),
+                                        )
+                                        .changed()
+                                    {
+                                        self.api
+                                            .set_backlight_effect(self.backlight_effect.unwrap());
+                                    }
+
+                                    if ui.button("+").clicked() {
+                                        if let Some(effect) = self.backlight_effect.as_mut() {
+                                            *effect = effect.saturating_add(1);
+                                            self.api.set_backlight_effect(*effect);
+                                        }
+                                    }
+                                });
+
                                 if ui
                                     .add(
                                         egui::Slider::new(
@@ -136,20 +154,6 @@ impl eframe::App for ViaController {
                                         self.backlight_brightness.unwrap(),
                                     );
                                 }
-
-                                if ui
-                                    .add(
-                                        egui::Slider::new(
-                                            self.backlight_effect.as_mut().unwrap(),
-                                            0..=255,
-                                        )
-                                        .text("Effect"),
-                                    )
-                                    .changed()
-                                {
-                                    self.api
-                                        .set_backlight_effect(self.backlight_effect.unwrap());
-                                }
                             });
                     });
 
@@ -157,6 +161,36 @@ impl eframe::App for ViaController {
                         egui::CollapsingHeader::new("RGB Light")
                             .default_open(false)
                             .show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    if ui.button("-").clicked() {
+                                        if let Some(effect) = self.rgblight_effect.as_mut() {
+                                            *effect = effect.saturating_sub(1);
+                                            self.api.set_rgblight_effect(*effect);
+                                        }
+                                    }
+
+                                    if ui
+                                        .add(
+                                            egui::DragValue::new(
+                                                self.rgblight_effect.as_mut().unwrap(),
+                                            )
+                                            .range(0..=255)
+                                            .speed(1)
+                                            .prefix("Effect: "),
+                                        )
+                                        .changed()
+                                    {
+                                        self.api.set_rgblight_effect(self.rgblight_effect.unwrap());
+                                    }
+
+                                    if ui.button("+").clicked() {
+                                        if let Some(effect) = self.rgblight_effect.as_mut() {
+                                            *effect = effect.saturating_add(1);
+                                            self.api.set_rgblight_effect(*effect);
+                                        }
+                                    }
+                                });
+
                                 if ui
                                     .add(
                                         egui::Slider::new(
@@ -169,19 +203,6 @@ impl eframe::App for ViaController {
                                 {
                                     self.api
                                         .set_rgblight_brightness(self.rgblight_brightness.unwrap());
-                                }
-
-                                if ui
-                                    .add(
-                                        egui::Slider::new(
-                                            self.rgblight_effect.as_mut().unwrap(),
-                                            0..=255,
-                                        )
-                                        .text("Effect"),
-                                    )
-                                    .changed()
-                                {
-                                    self.api.set_rgblight_effect(self.rgblight_effect.unwrap());
                                 }
 
                                 if ui
@@ -237,6 +258,37 @@ impl eframe::App for ViaController {
                         egui::CollapsingHeader::new("RGB Matrix")
                             .default_open(false)
                             .show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    if ui.button("-").clicked() {
+                                        if let Some(effect) = self.rgb_matrix_effect.as_mut() {
+                                            *effect = effect.saturating_sub(1);
+                                            self.api.set_rgb_matrix_effect(*effect);
+                                        }
+                                    }
+
+                                    if ui
+                                        .add(
+                                            egui::DragValue::new(
+                                                self.rgb_matrix_effect.as_mut().unwrap(),
+                                            )
+                                            .range(0..=255)
+                                            .speed(1)
+                                            .prefix("Effect: "),
+                                        )
+                                        .changed()
+                                    {
+                                        self.api
+                                            .set_rgb_matrix_effect(self.rgb_matrix_effect.unwrap());
+                                    }
+
+                                    if ui.button("+").clicked() {
+                                        if let Some(effect) = self.rgb_matrix_effect.as_mut() {
+                                            *effect = effect.saturating_add(1);
+                                            self.api.set_rgb_matrix_effect(*effect);
+                                        }
+                                    }
+                                });
+
                                 if ui
                                     .add(
                                         egui::Slider::new(
@@ -250,20 +302,6 @@ impl eframe::App for ViaController {
                                     self.api.set_rgb_matrix_brightness(
                                         self.rgb_matrix_brightness.unwrap(),
                                     );
-                                }
-
-                                if ui
-                                    .add(
-                                        egui::Slider::new(
-                                            self.rgb_matrix_effect.as_mut().unwrap(),
-                                            0..=255,
-                                        )
-                                        .text("Effect"),
-                                    )
-                                    .changed()
-                                {
-                                    self.api
-                                        .set_rgb_matrix_effect(self.rgb_matrix_effect.unwrap());
                                 }
 
                                 if ui
@@ -319,6 +357,37 @@ impl eframe::App for ViaController {
                         egui::CollapsingHeader::new("LED Matrix")
                             .default_open(false)
                             .show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    if ui.button("-").clicked() {
+                                        if let Some(effect) = self.led_matrix_effect.as_mut() {
+                                            *effect = effect.saturating_sub(1);
+                                            self.api.set_led_matrix_effect(*effect);
+                                        }
+                                    }
+
+                                    if ui
+                                        .add(
+                                            egui::DragValue::new(
+                                                self.led_matrix_effect.as_mut().unwrap(),
+                                            )
+                                            .range(0..=255)
+                                            .speed(1)
+                                            .prefix("Effect: "),
+                                        )
+                                        .changed()
+                                    {
+                                        self.api
+                                            .set_led_matrix_effect(self.led_matrix_effect.unwrap());
+                                    }
+
+                                    if ui.button("+").clicked() {
+                                        if let Some(effect) = self.led_matrix_effect.as_mut() {
+                                            *effect = effect.saturating_add(1);
+                                            self.api.set_led_matrix_effect(*effect);
+                                        }
+                                    }
+                                });
+
                                 if ui
                                     .add(
                                         egui::Slider::new(
@@ -337,20 +406,6 @@ impl eframe::App for ViaController {
                                 if ui
                                     .add(
                                         egui::Slider::new(
-                                            self.led_matrix_effect.as_mut().unwrap(),
-                                            0..=255,
-                                        )
-                                        .text("Effect"),
-                                    )
-                                    .changed()
-                                {
-                                    self.api
-                                        .set_led_matrix_effect(self.led_matrix_effect.unwrap());
-                                }
-
-                                if ui
-                                    .add(
-                                        egui::Slider::new(
                                             self.led_matrix_effect_speed.as_mut().unwrap(),
                                             0..=255,
                                         )
@@ -364,6 +419,22 @@ impl eframe::App for ViaController {
                                 }
                             });
                     });
+
+                    egui::CollapsingHeader::new("Advanced")
+                        .default_open(false)
+                        .show(ui, |ui| {
+                            if ui.button("Reset EEPROM").clicked() {
+                                self.api.reset_eeprom();
+                            }
+
+                            if ui.button("Reset Macros").clicked() {
+                                self.api.reset_macros();
+                            }
+
+                            if ui.button("Jump to Bootloader").clicked() {
+                                self.api.jump_to_bootloader();
+                            }
+                        });
                 });
         });
     }
