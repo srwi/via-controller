@@ -1,0 +1,9 @@
+[package]
+name = "via-controller"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+egui = "0.29.1"
+eframe = "0.29.1"
+qmk-via-api = "0.2.0"
